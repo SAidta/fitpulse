@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FitPulse - Routine & Calorie Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#10b981" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FitPulse" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+  <style>
+    :root {
+      --bg: #030712;
+      --card-bg: #111827;
+      --input-bg: #1f2937;
+      --border: #374151;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --danger: #ef4444;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px 16px 60px;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.75rem; color: var(--primary); font-weight: 800; }
+    .subtitle { font-size: 0.85rem; color: var(--text-muted); }
+    .streak-badge {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      text-align: right;
+    }
+    .streak-label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+    .streak-val { font-size: 1.1rem; font-weight: 800; color: #f97316; }
+
+    .quote-box {
+      background: #064e3b33;
+      border: 1px solid #065f46;
+      border-radius: var(--radius);
+      padding: 16px;
+      margin: 20px 0;
+    }
+    .quote-box p { font-style: italic; color: #d1fae5; font-size: 0.95rem; }
+    .quote-box button {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 1.15rem; font-weight: 700; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .stat-item {
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-label { font-size: 0.75rem; color: var(--text-muted); }
+    .stat-val { font-size: 1.4rem; font-weight: 700; margin: 4px 0; color: var(--primary); }
+    .stat-val.alt { color: #38bdf8; }
+
+    .progress-bar-bg {
+      background: #1f2937;
+      height: 10px;
+      border-radius: 99px;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      background: var(--primary);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    @media (min-width: 768px) {
+      .main-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .form-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    input[type="text"], input[type="number"] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      width: 100%;
+    }
+    input:focus { border-color: var(--primary); }
+    button.btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.btn-primary:hover { background: var(--primary-hover); }
+
+    .list-container { display: flex; flex-direction: column; gap: 8px; }
+    .list-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0b0f19;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.85rem;
+    }
+    .list-row.done { opacity: 0.5; text-decoration: line-through; }
+    .btn-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0 4px;
+    }
+    .btn-delete:hover { color: var(--danger); }
+    .btn-reset {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 14px;
+      text-align: center;
+    }
+    .btn-reset:hover { color: var(--danger); }
+    #searchResults {
+      background: #1f2937;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+    .search-row {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .search-row:hover { background: #374151; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1 style="display: flex; align-items: center; gap: 10px;">
+  <img src="icon-192.png" alt="FitPulse Logo" style="width: 36px; height: 36px; border-radius: 8px;" />
+  FitPulse
+</h1>
+        <p class="subtitle">Daily routine & nutrition tracking</p>
+      </div>
+      <div class="streak-badge">
+        <div class="streak-label">Streak</div>
+        <div class="streak-val" id="streakDisplay">1 Day</div>
+      </div>
+    </header>
+
+    <div class="quote-box">
+      <p id="quoteText">"Consistency is what transforms average into excellence."</p>
+      <button onclick="newQuote()">Get New Quote →</button>
+    </div>
+
+    <!-- Calories Section -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Nutrition & Calories</div>
+          <div class="subtitle">Daily progress overview</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span class="subtitle">Goal:</span>
+          <input type="number" id="calTargetInput" value="2000" style="width: 85px;" onchange="updateCalorieGoal(this.value)" />
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-label">Consumed</div>
+          <div class="stat-val" id="caloriesConsumed">0</div>
+          <div class="stat-label">kcal</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Remaining</div>
+          <div class="stat-val" style="color: #fff;" id="caloriesRemaining">2000</div>
+          <div class="stat-label">kcal</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Protein</div>
+          <div class="stat-val alt" id="proteinConsumed">0g</div>
+          <div class="stat-label">Total</div>
+        </div>
+      </div>
+
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="calorieProgressBar"></div>
+      </div>
+    </div>
+
+    <!-- Main 2-Column Section -->
+    <div class="main-grid">
+      <!-- Habits -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Daily Habits</div>
+          <span class="subtitle" id="routineCounter">0/4 Done</span>
+        </div>
+
+        <form class="form-group" onsubmit="addHabit(event)">
+          <input type="text" id="newHabitText" placeholder="Add custom habit..." required />
+          <button class="btn-primary" type="submit">+</button>
+        </form>
+
+        <div class="list-container" id="routineList"></div>
+        <button class="btn-reset" onclick="resetDay()">↺ Reset Checkmarks for Tomorrow</button>
+      </div>
+
+      <!-- Food Tracker -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Log Food</div>
+        </div>
+
+        <div class="form-group">
+          <input type="text" id="foodSearchInput" placeholder="Search database (e.g. banana, egg)..." />
+          <button class="btn-primary" onclick="searchFoodAPI()">Search</button>
+        </div>
+        <div id="searchResults" style="display:none;"></div>
+
+        <form class="form-group" style="flex-wrap: wrap;" onsubmit="addManualMeal(event)">
+          <input type="text" id="manualName" placeholder="Food name" required style="flex: 2 1 120px;" />
+          <input type="number" id="manualCals" placeholder="Calories" required style="flex: 1 1 70px;" />
+          <input type="number" id="manualProtein" placeholder="Protein (g)" style="flex: 1 1 70px;" />
+          <button class="btn-primary" type="submit" style="width: 100%;">Add Meal</button>
+        </form>
+
+        <div class="card-title" style="font-size: 0.85rem; margin-top: 14px; margin-bottom: 8px;">Logged Today</div>
+        <div class="list-container" id="mealsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const quotes = [
+      "Consistency is what transforms average into excellence.",
+      "You don't have to be extreme, just consistent.",
+      "Discipline is choosing between what you want now and what you want most.",
+      "Small daily improvements over time lead to stunning results.",
+      "Energy flows where attention goes."
+    ];
+
+    let state = {
+      targetCalories: parseInt(localStorage.getItem('targetCalories')) || 2000,
+      streak: parseInt(localStorage.getItem('streak')) || 1,
+      habits: JSON.parse(localStorage.getItem('habits')) || [
+        { id: 1, text: "Drink 2.5L Water", done: false },
+        { id: 2, text: "30-min Workout or Walk", done: false },
+        { id: 3, text: "7+ Hours Sleep", done: false },
+        { id: 4, text: "No Sugar / Clean Eating", done: false }
+      ],
+      meals: JSON.parse(localStorage.getItem('meals')) || []
+    };
+
+    function saveState() {
+      localStorage.setItem('targetCalories', state.targetCalories);
+      localStorage.setItem('streak', state.streak);
+      localStorage.setItem('habits', JSON.stringify(state.habits));
+      localStorage.setItem('meals', JSON.stringify(state.meals));
+      render();
+    }
+
+    function newQuote() {
+      const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+      document.getElementById('quoteText').innerText = `"${randomQuote}"`;
+    }
+
+    function toggleHabit(id) {
+      state.habits = state.habits.map(h => h.id === id ? { ...h, done: !h.done } : h);
+      saveState();
+    }
+
+    function addHabit(e) {
+      e.preventDefault();
+      const input = document.getElementById('newHabitText');
+      if (!input.value.trim()) return;
+      state.habits.push({ id: Date.now(), text: input.value.trim(), done: false });
+      input.value = '';
+      saveState();
+    }
+
+    function deleteHabit(id) {
+      state.habits = state.habits.filter(h => h.id !== id);
+      saveState();
+    }
+
+    function resetDay() {
+      state.habits = state.habits.map(h => ({ ...h, done: false }));
+      state.meals = [];
+      saveState();
+    }
+
+    function updateCalorieGoal(val) {
+      state.targetCalories = parseInt(val) || 2000;
+      saveState();
+    }
+
+    function addManualMeal(e) {
+      e.preventDefault();
+      const name = document.getElementById('manualName').value;
+      const cals = parseInt(document.getElementById('manualCals').value) || 0;
+      const protein = parseInt(document.getElementById('manualProtein').value) || 0;
+      state.meals.push({ id: Date.now(), name, cals, protein });
+      document.getElementById('manualName').value = '';
+      document.getElementById('manualCals').value = '';
+      document.getElementById('manualProtein').value = '';
+      saveState();
+    }
+
+    function deleteMeal(id) {
+      state.meals = state.meals.filter(m => m.id !== id);
+      saveState();
+    }
+
+    async function searchFoodAPI() {
+      const query = document.getElementById('foodSearchInput').value.trim();
+      const resultsContainer = document.getElementById('searchResults');
+      if (!query) return;
+
+      resultsContainer.style.display = 'block';
+      resultsContainer.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: #9ca3af;">Searching...</div>`;
+
+      try {
+        const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=5`);
+        const data = await res.json();
+        
+        resultsContainer.innerHTML = '';
+        if (!data.products || data.products.length === 0) {
+          resultsContainer.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: #9ca3af;">No items found.</div>`;
+          return;
+        }
+
+        data.products.forEach(p => {
+          const name = p.product_name || "Unknown item";
+          const nutriments = p.nutriments || {};
+          const cals = Math.round(nutriments['energy-kcal_100g'] || (nutriments['energy-kcal'] || 0));
+          const protein = Math.round(nutriments['proteins_100g'] || 0);
+
+          const div = document.createElement('div');
+          div.className = "search-row";
+          div.innerHTML = `<span><strong>${name}</strong> (${cals} kcal / 100g)</span><button class="btn-primary" style="padding: 4px 8px; font-size: 0.75rem;">Add</button>`;
+          div.onclick = () => {
+            state.meals.push({ id: Date.now(), name, cals, protein });
+            resultsContainer.style.display = 'none';
+            document.getElementById('foodSearchInput').value = '';
+            saveState();
+          };
+          resultsContainer.appendChild(div);
+        });
+      } catch (err) {
+        resultsContainer.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: #ef4444;">Search unavailable offline.</div>`;
+      }
+    }
+
+    function render() {
+      document.getElementById('streakDisplay').innerText = `${state.streak} Day${state.streak > 1 ? 's' : ''}`;
+      document.getElementById('calTargetInput').value = state.targetCalories;
+
+      // Render Habits
+      const habitList = document.getElementById('routineList');
+      habitList.innerHTML = '';
+      let completedCount = 0;
+
+      state.habits.forEach(habit => {
+        if (habit.done) completedCount++;
+        const item = document.createElement('div');
+        item.className = `list-row ${habit.done ? 'done' : ''}`;
+        item.innerHTML = `
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1;">
+            <input type="checkbox" ${habit.done ? 'checked' : ''} onchange="toggleHabit(${habit.id})" />
+            <span>${habit.text}</span>
+          </label>
+          <button class="btn-delete" onclick="deleteHabit(${habit.id})">✕</button>
+        `;
+        habitList.appendChild(item);
+      });
+      document.getElementById('routineCounter').innerText = `${completedCount}/${state.habits.length} Done`;
+
+      // Render Nutrition
+      const totalCals = state.meals.reduce((acc, m) => acc + (m.cals || 0), 0);
+      const totalProtein = state.meals.reduce((acc, m) => acc + (m.protein || 0), 0);
+      const remainingCals = Math.max(0, state.targetCalories - totalCals);
+      const pct = Math.min(100, Math.round((totalCals / state.targetCalories) * 100));
+
+      document.getElementById('caloriesConsumed').innerText = totalCals;
+      document.getElementById('caloriesRemaining').innerText = remainingCals;
+      document.getElementById('proteinConsumed').innerText = `${totalProtein}g`;
+      document.getElementById('calorieProgressBar').style.width = `${pct}%`;
+
+      // Render Meals List
+      const mealsList = document.getElementById('mealsList');
+      mealsList.innerHTML = '';
+      if (state.meals.length === 0) {
+        mealsList.innerHTML = `<p style="font-size: 0.8rem; color: #6b7280; font-style: italic;">No meals logged yet today.</p>`;
+      } else {
+        state.meals.forEach(meal => {
+          const item = document.createElement('div');
+          item.className = "list-row";
+          item.innerHTML = `
+            <span><strong>${meal.name}</strong> — ${meal.cals} kcal (${meal.protein}g P)</span>
+            <button class="btn-delete" onclick="deleteMeal(${meal.id})">✕</button>
+          `;
+          mealsList.appendChild(item);
+        });
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>
