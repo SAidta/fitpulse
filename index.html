@@ -9,8 +9,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="FitPulse" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-<link rel="icon" type="image/png" href="icon-192.png" />
+
+  <!-- External Free Libraries via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+
   <style>
     :root {
       --bg: #030712;
@@ -31,7 +37,7 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       padding: 24px 16px 60px;
     }
-    .container { max-width: 860px; margin: 0 auto; }
+    .container { max-width: 900px; margin: 0 auto; }
     
     header {
       display: flex;
@@ -40,7 +46,8 @@
       padding-bottom: 20px;
       border-bottom: 1px solid var(--border);
     }
-    h1 { font-size: 1.75rem; color: var(--primary); font-weight: 800; }
+    h1 { font-size: 1.75rem; color: var(--primary); font-weight: 800; display: flex; align-items: center; gap: 10px; }
+    .header-logo { width: 36px; height: 36px; border-radius: 8px; }
     .subtitle { font-size: 0.85rem; color: var(--text-muted); }
     .streak-badge {
       background: var(--card-bg);
@@ -126,7 +133,7 @@
     }
 
     .form-group { display: flex; gap: 8px; margin-bottom: 12px; }
-    input[type="text"], input[type="number"] {
+    input[type="text"], input[type="number"], input[type="date"] {
       background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -148,6 +155,17 @@
       cursor: pointer;
     }
     button.btn-primary:hover { background: var(--primary-hover); }
+
+    button.btn-secondary {
+      background: #374151;
+      color: #f9fafb;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    button.btn-secondary:hover { background: #4b5563; }
 
     .list-container { display: flex; flex-direction: column; gap: 8px; }
     .list-row {
@@ -181,6 +199,7 @@
       text-align: center;
     }
     .btn-reset:hover { color: var(--danger); }
+
     #searchResults {
       background: #1f2937;
       border: 1px solid var(--border);
@@ -199,16 +218,35 @@
       font-size: 0.8rem;
     }
     .search-row:hover { background: #374151; }
+
+    /* Camera Scanner Overlay */
+    #scannerModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 100;
+      padding: 20px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #scannerVideo {
+      width: 100%;
+      max-width: 480px;
+      border-radius: 12px;
+      border: 2px solid var(--primary);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <div>
-        <h1 style="display: flex; align-items: center; gap: 10px;">
-  <img src="icon-192.png" alt="FitPulse Logo" style="width: 36px; height: 36px; border-radius: 8px;" />
-  FitPulse
-</h1>
+        <h1>
+          <img src="icon-192.png" alt="FitPulse Logo" class="header-logo" onerror="this.style.display='none'" />
+          FitPulse
+        </h1>
         <p class="subtitle">Daily routine & nutrition tracking</p>
       </div>
       <div class="streak-badge">
@@ -280,10 +318,11 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">Log Food</div>
+          <button class="btn-secondary" onclick="startScanner()" style="font-size: 0.75rem;">📷 Scan Barcode</button>
         </div>
 
         <div class="form-group">
-          <input type="text" id="foodSearchInput" placeholder="Search database (e.g. banana, egg)..." />
+          <input type="text" id="foodSearchInput" placeholder="Search database (e.g. banana, oats)..." />
           <button class="btn-primary" onclick="searchFoodAPI()">Search</button>
         </div>
         <div id="searchResults" style="display:none;"></div>
@@ -299,9 +338,70 @@
         <div class="list-container" id="mealsList"></div>
       </div>
     </div>
+
+    <!-- Weight Tracker & Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Weight Tracker & Trends</div>
+          <div class="subtitle">Log your weight progress over time</div>
+        </div>
+      </div>
+      <form class="form-group" onsubmit="logWeight(event)" style="max-width: 400px;">
+        <input type="date" id="weightDate" required />
+        <input type="number" step="0.1" id="weightVal" placeholder="Weight (kg or lbs)" required />
+        <button class="btn-primary" type="submit">Log</button>
+      </form>
+      <div style="position: relative; height: 260px; width: 100%; margin-top: 16px;">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Data Import / Export -->
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div class="card-title" style="font-size: 1rem;">Backup & Restore</div>
+        <div class="subtitle">Download or restore your habits and nutrition logs</div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-secondary" onclick="exportData()">⬇ Export JSON</button>
+        <button class="btn-secondary" onclick="document.getElementById('importFile').click()">⬆ Import JSON</button>
+        <input type="file" id="importFile" style="display:none;" accept=".json" onchange="importData(event)" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera Barcode Scanner Modal -->
+  <div id="scannerModal">
+    <video id="scannerVideo"></video>
+    <button class="btn-primary" onclick="stopScanner()" style="margin-top: 16px;">Close Scanner</button>
   </div>
 
   <script>
+    // Web Audio Synthesizer (Zero External MP3 Assets)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playTone(freq, duration, type = 'sine') {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function soundCheck() { playTone(587.33, 0.15); } // D5 note
+    function soundGoalMet() {
+      playTone(523.25, 0.12);
+      setTimeout(() => playTone(659.25, 0.12), 120);
+      setTimeout(() => playTone(783.99, 0.25), 240);
+    }
+
     const quotes = [
       "Consistency is what transforms average into excellence.",
       "You don't have to be extreme, just consistent.",
@@ -319,7 +419,8 @@
         { id: 3, text: "7+ Hours Sleep", done: false },
         { id: 4, text: "No Sugar / Clean Eating", done: false }
       ],
-      meals: JSON.parse(localStorage.getItem('meals')) || []
+      meals: JSON.parse(localStorage.getItem('meals')) || [],
+      weights: JSON.parse(localStorage.getItem('weights')) || []
     };
 
     function saveState() {
@@ -327,6 +428,7 @@
       localStorage.setItem('streak', state.streak);
       localStorage.setItem('habits', JSON.stringify(state.habits));
       localStorage.setItem('meals', JSON.stringify(state.meals));
+      localStorage.setItem('weights', JSON.stringify(state.weights));
       render();
     }
 
@@ -336,7 +438,22 @@
     }
 
     function toggleHabit(id) {
-      state.habits = state.habits.map(h => h.id === id ? { ...h, done: !h.done } : h);
+      state.habits = state.habits.map(h => {
+        if (h.id === id) {
+          const nextState = !h.done;
+          if (nextState) soundCheck();
+          return { ...h, done: nextState };
+        }
+        return h;
+      });
+
+      const allDone = state.habits.length > 0 && state.habits.every(h => h.done);
+      if (allDone) {
+        soundGoalMet();
+        if (window.confetti) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+      }
       saveState();
     }
 
@@ -374,6 +491,7 @@
       document.getElementById('manualName').value = '';
       document.getElementById('manualCals').value = '';
       document.getElementById('manualProtein').value = '';
+      soundCheck();
       saveState();
     }
 
@@ -382,6 +500,140 @@
       saveState();
     }
 
+    // Weight Logging & Chart.js Integration
+    let weightChartInstance = null;
+    function logWeight(e) {
+      e.preventDefault();
+      const date = document.getElementById('weightDate').value;
+      const weight = parseFloat(document.getElementById('weightVal').value);
+      if (!date || isNaN(weight)) return;
+
+      const idx = state.weights.findIndex(w => w.date === date);
+      if (idx >= 0) state.weights[idx].weight = weight;
+      else state.weights.push({ date, weight });
+
+      state.weights.sort((a, b) => new Date(a.date) - new Date(b.date));
+      document.getElementById('weightVal').value = '';
+      soundCheck();
+      saveState();
+    }
+
+    function updateWeightChart() {
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      const labels = state.weights.map(w => w.date);
+      const data = state.weights.map(w => w.weight);
+
+      if (weightChartInstance) {
+        weightChartInstance.destroy();
+      }
+
+      weightChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Weight',
+            data: data,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: '#10b981'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } },
+            y: { grid: { color: '#1f2937' }, ticks: { color: '#9ca3af' } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // Data Export & Import
+    function exportData() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fitpulse-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && imported.habits) {
+            state = { ...state, ...imported };
+            saveState();
+            alert('Data restored successfully!');
+          }
+        } catch (err) {
+          alert('Invalid backup file.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Barcode Scanner via ZXing
+    let codeReader = null;
+    async function startScanner() {
+      const modal = document.getElementById('scannerModal');
+      modal.style.display = 'flex';
+      codeReader = new ZXing.BrowserMultiFormatReader();
+
+      try {
+        await codeReader.decodeFromVideoDevice(null, 'scannerVideo', (result, err) => {
+          if (result) {
+            soundGoalMet();
+            fetchBarcodeProduct(result.getText());
+            stopScanner();
+          }
+        });
+      } catch (err) {
+        alert('Could not access camera for barcode scanning.');
+        stopScanner();
+      }
+    }
+
+    function stopScanner() {
+      if (codeReader) {
+        codeReader.reset();
+        codeReader = null;
+      }
+      document.getElementById('scannerModal').style.display = 'none';
+    }
+
+    async function fetchBarcodeProduct(barcode) {
+      try {
+        const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+        const data = await res.json();
+        if (data.status === 1 && data.product) {
+          const p = data.product;
+          const name = p.product_name || "Scanned Food";
+          const nutriments = p.nutriments || {};
+          const cals = Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 0);
+          const protein = Math.round(nutriments['proteins_100g'] || 0);
+          state.meals.push({ id: Date.now(), name, cals, protein });
+          saveState();
+        } else {
+          alert(`Product not found for barcode: ${barcode}`);
+        }
+      } catch (err) {
+        alert('Network error looking up barcode.');
+      }
+    }
+
+    // Open Food Facts Text Search
     async function searchFoodAPI() {
       const query = document.getElementById('foodSearchInput').value.trim();
       const resultsContainer = document.getElementById('searchResults');
@@ -403,7 +655,7 @@
         data.products.forEach(p => {
           const name = p.product_name || "Unknown item";
           const nutriments = p.nutriments || {};
-          const cals = Math.round(nutriments['energy-kcal_100g'] || (nutriments['energy-kcal'] || 0));
+          const cals = Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 0);
           const protein = Math.round(nutriments['proteins_100g'] || 0);
 
           const div = document.createElement('div');
@@ -413,12 +665,13 @@
             state.meals.push({ id: Date.now(), name, cals, protein });
             resultsContainer.style.display = 'none';
             document.getElementById('foodSearchInput').value = '';
+            soundCheck();
             saveState();
           };
           resultsContainer.appendChild(div);
         });
       } catch (err) {
-        resultsContainer.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: #ef4444;">Search unavailable offline.</div>`;
+        resultsContainer.innerHTML = `<div style="padding: 10px; font-size: 0.8rem; color: #ef4444;">Search unavailable.</div>`;
       }
     }
 
@@ -473,7 +726,12 @@
           mealsList.appendChild(item);
         });
       }
+
+      updateWeightChart();
     }
+
+    // Set today's date in weight tracker input by default
+    document.getElementById('weightDate').value = new Date().toISOString().slice(0, 10);
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
