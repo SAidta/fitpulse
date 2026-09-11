@@ -12,8 +12,11 @@
   <link rel="icon" type="image/png" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
 
-  <!-- Free External Libraries (No Keys Required) -->
-  <script src="https://js.puter.com/v2/"></script>
+  <!-- In-Browser Zero-Login Machine Learning (Runs completely on-device) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest"></script>
+
+  <!-- UI & Hardware Utilities -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://unpkg.com/@zxing/library@latest"></script>
@@ -304,9 +307,9 @@
       </div>
     </div>
 
-    <!-- Main 2-Column Section -->
+    <!-- Main Grid -->
     <div class="main-grid">
-      <!-- Habits -->
+      <!-- Habits Tracker -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">Daily Habits</div>
@@ -329,24 +332,25 @@
           <button class="btn-secondary" onclick="startScanner()" style="font-size: 0.75rem;">📷 Barcode</button>
         </div>
 
-        <!-- Direct AI Camera Snap (Zero Setup / No Keys) -->
+        <!-- On-Device AI Camera Snap (Zero-Login / No Setup) -->
         <div style="margin-bottom: 12px;">
           <input type="file" id="aiFoodCamera" accept="image/*" capture="environment" style="display: none;" onchange="analyzeFoodImage(event)" />
           <button class="btn-ai" onclick="document.getElementById('aiFoodCamera').click()">
-            ✨ Snap Food & Auto-Calculate (No Key Needed)
+            📸 Snap Food & Auto-Detect (Zero-Login / No Key)
           </button>
           <div id="aiStatus" style="display: none; font-size: 0.75rem; color: #a5b4fc; text-align: center; margin-top: 6px;">
-            Analyzing plate with AI...
+            Recognizing food...
           </div>
         </div>
 
-        <!-- Manual / Search -->
+        <!-- Food Database Search -->
         <div class="form-group">
           <input type="text" id="foodSearchInput" placeholder="Search database (e.g. banana, oats)..." />
           <button class="btn-primary" onclick="searchFoodAPI()">Search</button>
         </div>
         <div id="searchResults" style="display:none;"></div>
 
+        <!-- Manual Meal Entry -->
         <form class="form-group" style="flex-wrap: wrap;" onsubmit="addManualMeal(event)">
           <input type="text" id="manualName" placeholder="Food name" required style="flex: 2 1 120px;" />
           <input type="number" id="manualCals" placeholder="Calories" required style="flex: 1 1 70px;" />
@@ -401,7 +405,7 @@
   </div>
 
   <script>
-    // Audio Chimes
+    // Web Audio Synthesizer (Zero Assets Required)
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playTone(freq, duration) {
       try {
@@ -520,60 +524,68 @@
       saveState();
     }
 
-    // AI Food Recognition (via Puter.js - No API Key Needed)
+    // On-Device Vision AI (MobileNet + TensorFlow.js: Zero Login / No API Keys)
+    let visionModel = null;
+
     async function analyzeFoodImage(event) {
       const file = event.target.files[0];
       if (!file) return;
 
       const status = document.getElementById('aiStatus');
       status.style.display = 'block';
-      status.innerText = "Analyzing meal with AI...";
+      status.innerText = "Loading vision model...";
 
-      // Downscale photo for quick upload
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onloadend = async () => {
+      try {
+        if (!visionModel) {
+          visionModel = await mobilenet.load({ version: 2, alpha: 1.0 });
+        }
+
+        status.innerText = "Recognizing food in photo...";
+
         const img = new Image();
-        img.src = reader.result;
-        img.onload = async () => {
-          const maxDim = 800;
-          let w = img.width, h = img.height;
-          if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
-          else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+        img.src = URL.createObjectURL(file);
+        await new Promise(r => img.onload = r);
 
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const predictions = await visionModel.classify(img);
+        if (!predictions || predictions.length === 0) {
+          throw new Error("Could not classify object.");
+        }
 
-          const prompt = 'Identify the food in this image. Estimate portion size and total nutrition. Return STRICT JSON only with keys: "name" (string), "calories" (integer), "protein" (integer in grams). No explanations or markdown.';
+        let rawLabel = predictions[0].className.split(',')[0].trim();
+        status.innerText = `Detected: ${rawLabel}. Fetching nutrition...`;
 
-          try {
-            // Free zero-setup vision chat
-            const response = await puter.ai.chat(prompt, compressedDataUrl);
-            const rawText = (typeof response === 'string' ? response : response?.message?.content) || '';
-            const cleanJson = rawText.replace(/```json|```/gi, '').trim();
-            const foodData = JSON.parse(cleanJson);
+        const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(rawLabel)}&search_simple=1&action=process&json=1&page_size=1`);
+        const data = await res.json();
 
-            state.meals.push({
-              id: Date.now(),
-              name: foodData.name || "AI Meal",
-              cals: parseInt(foodData.calories) || 0,
-              protein: parseInt(foodData.protein) || 0
-            });
+        let cals = 150;
+        let protein = 3;
+        let finalName = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
 
-            soundCelebration();
-            saveState();
-            status.style.display = 'none';
-            alert(`Detected: ${foodData.name}\n~${foodData.calories} kcal | ${foodData.protein}g protein`);
-          } catch (err) {
-            console.error(err);
-            status.style.display = 'none';
-            alert("Could not analyze image. Please try again with a clearer photo.");
-          }
-        };
-      };
+        if (data.products && data.products.length > 0) {
+          const p = data.products[0];
+          finalName = p.product_name || finalName;
+          const nutriments = p.nutriments || {};
+          cals = Math.round(nutriments['energy-kcal_100g'] || nutriments['energy-kcal'] || 150);
+          protein = Math.round(nutriments['proteins_100g'] || 3);
+        }
+
+        state.meals.push({
+          id: Date.now(),
+          name: finalName,
+          cals: cals,
+          protein: protein
+        });
+
+        soundCelebration();
+        saveState();
+        status.style.display = 'none';
+        alert(`Detected: ${finalName}\n~${cals} kcal | ${protein}g protein`);
+
+      } catch (err) {
+        console.error(err);
+        status.style.display = 'none';
+        alert("Could not detect food in photo. Please ensure good lighting and clear view.");
+      }
     }
 
     // ZXing Barcode Scanner
