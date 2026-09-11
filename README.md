@@ -21,6 +21,14 @@ FitPulse is a lightweight Progressive Web App (PWA) designed to help users stay 
   - Service Worker
   - Web App Manifest
 
+## Copyright
+
+© 2026 Sudip Adhikari. All rights reserved.
+
+FitPulse and all associated content, code, designs, graphics, and documentation are the intellectual property of Sudip Adhikari unless otherwise stated.
+
+Unauthorized copying, modification, distribution, or commercial use of this software, in whole or in part, without explicit written permission is prohibited.
+
 ## Project Structure
 
 ```text
@@ -33,10 +41,6 @@ fitpulse/
 ├── icon-512.png       # App icon (512x512)
 └── README.md
 
-## Copyright
 
-© 2026 Sudip Adhikari. All rights reserved.
 
-FitPulse and all associated content, code, designs, graphics, and documentation are the intellectual property of Sudip Adhikari unless otherwise stated.
 
-Unauthorized copying, modification, distribution, or commercial use of this software, in whole or in part, without explicit written permission is prohibited.
